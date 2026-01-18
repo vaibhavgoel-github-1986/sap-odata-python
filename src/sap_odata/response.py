@@ -1,206 +1,138 @@
 """
-Response - Response handling and normalization.
+SAP OData Response wrapper.
+
+Provides a consistent response object for all OData operations.
 """
 
-from typing import Dict, Any, List, Optional, Iterator, Literal
-from dataclasses import dataclass
-
-
-def normalize_response(data: Dict[str, Any], version: Literal["v2", "v4"]) -> Dict[str, Any]:
-    """
-    Normalize OData response to a consistent format.
-    
-    V2 responses are transformed to match V4 structure for consistency.
-    
-    Args:
-        data: Raw response data
-        version: OData version
-    
-    Returns:
-        Normalized response dictionary
-    """
-    if version == "v2" and "d" in data:
-        d_data = data["d"]
-        
-        # Handle collection response
-        if "results" in d_data:
-            normalized = {
-                "value": d_data["results"],
-            }
-            
-            # Convert __count to @odata.count
-            if "__count" in d_data:
-                normalized["@odata.count"] = int(d_data["__count"])
-            
-            # Convert __next to @odata.nextLink
-            if "__next" in d_data:
-                normalized["@odata.nextLink"] = d_data["__next"]
-            
-            return normalized
-        else:
-            # Single entity response
-            return {"value": [d_data]}
-    
-    return data
+from typing import Any, Dict, List, Optional
+from dataclasses import dataclass, field
 
 
 @dataclass
 class ODataResponse:
     """
-    Represents an OData API response.
+    Unified response object for OData operations.
     
-    Provides convenience methods for accessing response data and metadata.
+    Normalizes V2 and V4 responses to a consistent structure,
+    making it easy to work with data regardless of OData version.
     
     Attributes:
-        status_code: HTTP status code
-        data: Response data
-        raw_data: Original raw response data
+        status_code: HTTP status code of the response
+        data: Normalized response data with 'value' array
+        raw_response: Original response data for debugging
+        count: Total count if $count was requested
+        next_link: Pagination link if more data is available
+    
+    Example:
+        >>> response = client.call_odata(...)
+        >>> 
+        >>> # Access normalized data
+        >>> for item in response.value:
+        ...     print(item['CustomerID'])
+        >>> 
+        >>> # Check if successful
+        >>> if response.is_success:
+        ...     print(f"Got {len(response.value)} records")
+        >>> 
+        >>> # Pagination
+        >>> if response.has_more:
+        ...     print(f"Next page: {response.next_link}")
     """
+    
     status_code: int
     data: Dict[str, Any]
-    raw_data: Optional[Dict[str, Any]] = None
+    raw_response: Any = None
+    count: Optional[int] = None
+    next_link: Optional[str] = None
     
     @property
     def value(self) -> List[Dict[str, Any]]:
-        """Get the value array (entities)."""
+        """
+        Get the response data as a list.
+        
+        Returns:
+            List of entity dictionaries
+        """
         return self.data.get("value", [])
     
     @property
-    def count(self) -> Optional[int]:
-        """Get the total count if available."""
-        return self.data.get("@odata.count")
-    
-    @property
-    def next_link(self) -> Optional[str]:
-        """Get the next page link if available."""
-        return self.data.get("@odata.nextLink")
+    def first(self) -> Optional[Dict[str, Any]]:
+        """
+        Get the first entity from the response.
+        
+        Returns:
+            First entity dict, or None if empty
+        """
+        values = self.value
+        return values[0] if values else None
     
     @property
     def is_success(self) -> bool:
-        """Check if the response was successful."""
+        """
+        Check if the response indicates success.
+        
+        Returns:
+            True if status code is 2xx
+        """
         return 200 <= self.status_code < 300
     
-    def __iter__(self) -> Iterator[Dict[str, Any]]:
-        """Iterate over entities in the response."""
-        return iter(self.value)
-    
-    def __len__(self) -> int:
-        """Get number of entities in the response."""
-        return len(self.value)
-    
-    def __bool__(self) -> bool:
-        """Check if response has data."""
-        return self.is_success and len(self.value) > 0
-
-
-class EntityCollection:
-    """
-    Collection of entities with iteration and pagination support.
-    
-    Example:
-        >>> customers = service.entity("Customers").get()
-        >>> for customer in customers:
-        ...     print(customer.Name)
-    """
-    
-    def __init__(
-        self,
-        entities: List[Dict[str, Any]],
-        count: Optional[int] = None,
-        next_link: Optional[str] = None,
-    ) -> None:
-        """Initialize entity collection."""
-        self._entities = entities
-        self._count = count
-        self._next_link = next_link
-    
     @property
-    def count(self) -> Optional[int]:
-        """Total count of entities (if requested)."""
-        return self._count
-    
-    @property
-    def next_link(self) -> Optional[str]:
-        """Link to next page of results."""
-        return self._next_link
+    def is_empty(self) -> bool:
+        """
+        Check if the response contains no data.
+        
+        Returns:
+            True if value array is empty
+        """
+        return len(self.value) == 0
     
     @property
     def has_more(self) -> bool:
-        """Check if there are more results."""
-        return self._next_link is not None
-    
-    def __iter__(self) -> Iterator[Dict[str, Any]]:
-        """Iterate over entities."""
-        return iter(self._entities)
+        """
+        Check if there are more pages of data available.
+        
+        Returns:
+            True if next_link is present
+        """
+        return bool(self.next_link)
     
     def __len__(self) -> int:
-        """Get number of entities in collection."""
-        return len(self._entities)
+        """Return number of entities in response."""
+        return len(self.value)
     
-    def __getitem__(self, index: int) -> Dict[str, Any]:
-        """Get entity by index."""
-        return self._entities[index]
+    def __iter__(self):
+        """Iterate over response entities."""
+        return iter(self.value)
     
-    def first(self) -> Optional[Dict[str, Any]]:
-        """Get first entity or None."""
-        return self._entities[0] if self._entities else None
+    def __getitem__(self, key):
+        """Get entity by index or key."""
+        if isinstance(key, int):
+            return self.value[key]
+        return self.data.get(key)
     
-    def to_list(self) -> List[Dict[str, Any]]:
-        """Convert to list."""
-        return list(self._entities)
-
-
-class Entity:
-    """
-    Wrapper for a single entity with attribute access.
-    
-    Example:
-        >>> customer = Entity({"CustomerID": "CUST001", "Name": "ACME"})
-        >>> print(customer.Name)  # Attribute access
-        >>> print(customer["CustomerID"])  # Dict access
-    """
-    
-    def __init__(self, data: Dict[str, Any]) -> None:
-        """Initialize entity wrapper."""
-        self._data = data
-    
-    def __getattr__(self, name: str) -> Any:
-        """Get attribute by name."""
-        if name.startswith("_"):
-            raise AttributeError(name)
-        try:
-            return self._data[name]
-        except KeyError:
-            raise AttributeError(f"Entity has no property '{name}'")
-    
-    def __getitem__(self, key: str) -> Any:
-        """Get property by key."""
-        return self._data[key]
-    
-    def __contains__(self, key: str) -> bool:
-        """Check if property exists."""
-        return key in self._data
-    
-    def get(self, key: str, default: Any = None) -> Any:
-        """Get property with default."""
-        return self._data.get(key, default)
-    
-    def keys(self):
-        """Get property names."""
-        return self._data.keys()
-    
-    def values(self):
-        """Get property values."""
-        return self._data.values()
-    
-    def items(self):
-        """Get property items."""
-        return self._data.items()
+    def __bool__(self) -> bool:
+        """Response is truthy if successful and has data."""
+        return self.is_success and not self.is_empty
     
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary."""
-        return dict(self._data)
+        """
+        Convert response to dictionary.
+        
+        Returns:
+            Dictionary representation of the response
+        """
+        return {
+            "status_code": self.status_code,
+            "data": self.data,
+            "count": self.count,
+            "next_link": self.next_link,
+            "is_success": self.is_success,
+            "record_count": len(self.value),
+        }
     
     def __repr__(self) -> str:
-        """String representation."""
-        return f"Entity({self._data})"
+        return (
+            f"ODataResponse(status_code={self.status_code}, "
+            f"records={len(self.value)}, "
+            f"has_more={self.has_more})"
+        )

@@ -1,118 +1,231 @@
 """
-Tests for Metadata parsing.
+Tests for MetadataParser class.
 """
 
 import pytest
-from sap_odata.metadata import Metadata, EntityType, EntitySet, Property
+from sap_odata.metadata import MetadataParser, EntityType, Property, NavigationProperty
 
 
-SAMPLE_V4_METADATA = """<?xml version="1.0" encoding="utf-8"?>
-<edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
-  <edmx:DataServices>
-    <Schema Namespace="TestService" xmlns="http://docs.oasis-open.org/odata/ns/edm">
-      <EntityType Name="Customer">
-        <Key>
-          <PropertyRef Name="CustomerID"/>
-        </Key>
-        <Property Name="CustomerID" Type="Edm.String" Nullable="false" MaxLength="10"/>
-        <Property Name="Name" Type="Edm.String" MaxLength="100"/>
-        <Property Name="Country" Type="Edm.String" MaxLength="3"/>
-        <Property Name="Active" Type="Edm.Boolean"/>
-        <NavigationProperty Name="Orders" Type="Collection(TestService.Order)"/>
-      </EntityType>
-      <EntityType Name="Order">
-        <Key>
-          <PropertyRef Name="OrderID"/>
-        </Key>
-        <Property Name="OrderID" Type="Edm.Int32" Nullable="false"/>
-        <Property Name="Total" Type="Edm.Decimal" Precision="15" Scale="2"/>
-      </EntityType>
-      <EntityContainer Name="Container">
-        <EntitySet Name="Customers" EntityType="TestService.Customer"/>
-        <EntitySet Name="Orders" EntityType="TestService.Order"/>
-      </EntityContainer>
-    </Schema>
-  </edmx:DataServices>
-</edmx:Edmx>
-"""
-
-
-class TestMetadataParsing:
-    """Tests for metadata XML parsing."""
+class TestMetadataParserV4:
+    """Test V4 metadata parsing."""
     
-    def test_parse_v4_metadata(self):
+    def test_parse_v4_metadata(self, sample_metadata_v4):
         """Test parsing V4 metadata."""
-        metadata = Metadata.from_xml(SAMPLE_V4_METADATA, version="v4")
+        parser = MetadataParser(sample_metadata_v4)
         
-        assert len(metadata.entity_types) == 2
-        assert len(metadata.entity_sets) == 2
+        assert parser.odata_version == "v4"
+        assert len(parser.entity_types) > 0
     
-    def test_entity_type_properties(self):
-        """Test entity type properties are parsed correctly."""
-        metadata = Metadata.from_xml(SAMPLE_V4_METADATA, version="v4")
+    def test_entity_types_parsed(self, sample_metadata_v4):
+        """Test entity types are parsed correctly."""
+        parser = MetadataParser(sample_metadata_v4)
         
-        customer_type = metadata.entity_type("Customer")
-        assert customer_type is not None
-        assert customer_type.name == "Customer"
-        assert len(customer_type.properties) == 4
-        assert customer_type.key_properties == ["CustomerID"]
+        product = parser.get_entity_type("Product")
+        assert product is not None
+        assert product.name == "Product"
     
-    def test_property_attributes(self):
-        """Test property attributes are parsed correctly."""
-        metadata = Metadata.from_xml(SAMPLE_V4_METADATA, version="v4")
+    def test_properties_parsed(self, sample_metadata_v4):
+        """Test properties are parsed correctly."""
+        parser = MetadataParser(sample_metadata_v4)
         
-        customer_type = metadata.entity_type("Customer")
-        customer_id_prop = customer_type.property("CustomerID")
+        product = parser.get_entity_type("Product")
+        assert len(product.properties) > 0
         
-        assert customer_id_prop is not None
-        assert customer_id_prop.name == "CustomerID"
-        assert customer_id_prop.type == "Edm.String"
-        assert customer_id_prop.nullable is False
-        assert customer_id_prop.max_length == 10
-        assert customer_id_prop.is_key is True
+        # Check ProductID property
+        product_id = product.get_property("ProductID")
+        assert product_id is not None
+        assert product_id.type == "Edm.Int32"
+        assert product_id.is_key is True
     
-    def test_navigation_properties(self):
-        """Test navigation properties are parsed correctly."""
-        metadata = Metadata.from_xml(SAMPLE_V4_METADATA, version="v4")
+    def test_key_properties(self, sample_metadata_v4):
+        """Test key properties are identified."""
+        parser = MetadataParser(sample_metadata_v4)
         
-        customer_type = metadata.entity_type("Customer")
-        assert len(customer_type.navigation_properties) == 1
-        
-        orders_nav = customer_type.navigation("Orders")
-        assert orders_nav is not None
-        assert orders_nav.name == "Orders"
-        assert orders_nav.is_collection is True
+        product = parser.get_entity_type("Product")
+        assert "ProductID" in product.key_properties
+        assert len(product.keys) == 1
     
-    def test_entity_sets(self):
-        """Test entity sets are parsed correctly."""
-        metadata = Metadata.from_xml(SAMPLE_V4_METADATA, version="v4")
+    def test_navigation_properties(self, sample_metadata_v4):
+        """Test navigation properties are parsed."""
+        parser = MetadataParser(sample_metadata_v4)
         
-        customers_set = metadata.entity_set("Customers")
-        assert customers_set is not None
-        assert customers_set.name == "Customers"
-        assert customers_set.entity_type_name == "Customer"
-        assert customers_set.entity_type is not None
-    
-    def test_has_entity(self):
-        """Test has_entity method."""
-        metadata = Metadata.from_xml(SAMPLE_V4_METADATA, version="v4")
+        product = parser.get_entity_type("Product")
+        category_nav = product.get_navigation("Category")
+        assert category_nav is not None
         
-        assert metadata.has_entity("Customers") is True
-        assert metadata.has_entity("Products") is False
+        category = parser.get_entity_type("Category")
+        products_nav = category.get_navigation("Products")
+        assert products_nav is not None
+        assert products_nav.is_collection is True
     
-    def test_invalid_xml(self):
-        """Test parsing invalid XML."""
-        with pytest.raises(ValueError, match="Invalid metadata XML"):
-            Metadata.from_xml("<invalid>xml", version="v4")
+    def test_entity_sets_parsed(self, sample_metadata_v4):
+        """Test entity sets are parsed."""
+        parser = MetadataParser(sample_metadata_v4)
+        
+        assert len(parser.entity_sets) > 0
+        
+        products_set = parser.get_entity_set("Products")
+        assert products_set is not None
+        assert products_set.entity_type == "Product"
+
+
+class TestMetadataParserV2:
+    """Test V2 metadata parsing."""
+    
+    def test_parse_v2_metadata(self, sample_metadata_v2):
+        """Test parsing V2 metadata."""
+        parser = MetadataParser(sample_metadata_v2)
+        
+        assert parser.odata_version == "v2"
+        assert len(parser.entity_types) > 0
+    
+    def test_v2_entity_types(self, sample_metadata_v2):
+        """Test V2 entity types are parsed."""
+        parser = MetadataParser(sample_metadata_v2)
+        
+        product = parser.get_entity_type("Product")
+        assert product is not None
+        assert len(product.properties) > 0
 
 
 class TestProperty:
-    """Tests for Property class."""
+    """Test Property class."""
+    
+    def test_property_creation(self):
+        """Test creating a property."""
+        prop = Property(
+            name="ProductID",
+            type="Edm.Int32",
+            nullable=False,
+            is_key=True,
+        )
+        
+        assert prop.name == "ProductID"
+        assert prop.type == "Edm.Int32"
+        assert prop.nullable is False
+        assert prop.is_key is True
     
     def test_python_type_mapping(self):
-        """Test Python type mapping."""
-        assert Property(name="test", type="Edm.String").python_type == str
-        assert Property(name="test", type="Edm.Int32").python_type == int
-        assert Property(name="test", type="Edm.Boolean").python_type == bool
-        assert Property(name="test", type="Edm.Decimal").python_type == float
-        assert Property(name="test", type="Unknown").python_type == str  # Default
+        """Test EDM to Python type mapping."""
+        test_cases = [
+            ("Edm.String", "str"),
+            ("Edm.Int32", "int"),
+            ("Edm.Int64", "int"),
+            ("Edm.Decimal", "float"),
+            ("Edm.Boolean", "bool"),
+            ("Edm.DateTime", "datetime"),
+            ("Edm.Guid", "str"),
+        ]
+        
+        for edm_type, python_type in test_cases:
+            prop = Property(name="test", type=edm_type)
+            assert prop.python_type == python_type
+    
+    def test_property_repr(self):
+        """Test property string representation."""
+        prop = Property(name="ID", type="Edm.Int32", is_key=True)
+        repr_str = repr(prop)
+        
+        assert "ID" in repr_str
+        assert "Edm.Int32" in repr_str
+        assert "KEY" in repr_str
+
+
+class TestNavigationProperty:
+    """Test NavigationProperty class."""
+    
+    def test_navigation_creation(self):
+        """Test creating a navigation property."""
+        nav = NavigationProperty(
+            name="Orders",
+            target_entity="Order",
+            is_collection=True,
+        )
+        
+        assert nav.name == "Orders"
+        assert nav.target_entity == "Order"
+        assert nav.is_collection is True
+    
+    def test_navigation_repr(self):
+        """Test navigation property string representation."""
+        nav = NavigationProperty(
+            name="Items",
+            target_entity="OrderItem",
+            is_collection=True,
+        )
+        
+        repr_str = repr(nav)
+        assert "Items" in repr_str
+        assert "OrderItem" in repr_str
+
+
+class TestEntityType:
+    """Test EntityType class."""
+    
+    def test_entity_type_creation(self):
+        """Test creating an entity type."""
+        entity = EntityType(name="Product")
+        entity.properties = [
+            Property(name="ID", type="Edm.Int32", is_key=True),
+            Property(name="Name", type="Edm.String"),
+        ]
+        entity.key_properties = ["ID"]
+        
+        assert entity.name == "Product"
+        assert len(entity.properties) == 2
+    
+    def test_get_property(self):
+        """Test getting property by name."""
+        entity = EntityType(name="Product")
+        entity.properties = [
+            Property(name="ID", type="Edm.Int32"),
+            Property(name="Name", type="Edm.String"),
+        ]
+        
+        prop = entity.get_property("ID")
+        assert prop is not None
+        assert prop.type == "Edm.Int32"
+        
+        missing = entity.get_property("NonExistent")
+        assert missing is None
+    
+    def test_keys_property(self):
+        """Test keys property."""
+        entity = EntityType(name="Product")
+        entity.properties = [
+            Property(name="ID", type="Edm.Int32", is_key=True),
+            Property(name="Name", type="Edm.String", is_key=False),
+        ]
+        entity.key_properties = ["ID"]
+        
+        keys = entity.keys
+        assert len(keys) == 1
+        assert keys[0].name == "ID"
+
+
+class TestMetadataToDict:
+    """Test metadata to_dict functionality."""
+    
+    def test_to_dict(self, sample_metadata_v4):
+        """Test converting metadata to dictionary."""
+        parser = MetadataParser(sample_metadata_v4)
+        d = parser.to_dict()
+        
+        assert "odata_version" in d
+        assert "entity_types" in d
+        assert "entity_sets" in d
+        assert d["odata_version"] == "v4"
+
+
+class TestInvalidMetadata:
+    """Test handling of invalid metadata."""
+    
+    def test_invalid_xml(self):
+        """Test handling invalid XML."""
+        with pytest.raises(ValueError):
+            MetadataParser("not valid xml")
+    
+    def test_empty_metadata(self):
+        """Test handling empty metadata."""
+        with pytest.raises(ValueError):
+            MetadataParser("")
