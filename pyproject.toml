@@ -8,15 +8,14 @@ version = "1.0.1"
 description = "AI/LLM-friendly Python client for SAP OData V2 and V4 APIs - single generic function for all operations"
 readme = "README.md"
 license = "Apache-2.0"
-authors = [{name = "Vaibhav Goel", email = "vaibhavgoel.github@gmail.com"}]
-maintainers = [{name = "Vaibhav Goel", email = "vaibhavgoel.github@gmail.com"}]
+authors = [{name = "Vaibhav Goel"}]
+maintainers = [{name = "Vaibhav Goel"}]
 requires-python = ">=3.8"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: Information Technology",
     "Intended Audience :: System Administrators",
-    "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
@@ -28,7 +27,6 @@ classifiers = [
     "Topic :: Internet :: WWW/HTTP",
     "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
     "Topic :: Office/Business :: Financial :: Accounting",
-    "Topic :: Office/Business :: Financial :: Enterprise Resource Planning (ERP)",
     "Topic :: Database :: Front-Ends",
     "Typing :: Typed",
 ]
@@ -39,16 +37,9 @@ keywords = [
     "sap",
     "sap-api",
     "sap-odata",
-    "sap-s4hana",
-    "sap-btp",
-    "sap-gateway",
-    "sap-rap",
-    "sap-cap",
     "rest-api",
     "rest-client",
     "api-client",
-    "enterprise",
-    "erp",
     "ai-friendly",
     "llm",
     "mcp",
