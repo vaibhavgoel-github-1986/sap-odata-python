@@ -4,23 +4,56 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sap-odata-python"
-version = "1.0.0"
-description = "Simple Python client for OData V2 and V4 services (SAP and generic)"
+version = "1.0.1"
+description = "AI/LLM-friendly Python client for SAP OData V2 and V4 APIs - single generic function for all operations"
 readme = "README.md"
 license = "Apache-2.0"
-authors = [{name = "Vaibhav Goel"}]
+authors = [{name = "Vaibhav Goel", email = "vaibhavgoel.github@gmail.com"}]
+maintainers = [{name = "Vaibhav Goel", email = "vaibhavgoel.github@gmail.com"}]
 requires-python = ">=3.8"
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+    "Topic :: Office/Business :: Financial :: Accounting",
+    "Topic :: Office/Business :: Financial :: Enterprise Resource Planning (ERP)",
+    "Topic :: Database :: Front-Ends",
+    "Typing :: Typed",
 ]
-keywords = ["odata", "sap", "api", "client", "rest"]
+keywords = [
+    "odata",
+    "odata-v2",
+    "odata-v4",
+    "sap",
+    "sap-api",
+    "sap-odata",
+    "sap-s4hana",
+    "sap-btp",
+    "sap-gateway",
+    "sap-rap",
+    "sap-cap",
+    "rest-api",
+    "rest-client",
+    "api-client",
+    "enterprise",
+    "erp",
+    "ai-friendly",
+    "llm",
+    "mcp",
+    "model-context-protocol",
+]
 dependencies = ["requests>=2.25.0"]
 
 [project.optional-dependencies]
@@ -29,6 +62,9 @@ dev = ["pytest>=7.0.0", "pytest-cov>=4.0.0"]
 [project.urls]
 Homepage = "https://github.com/vaibhavgoel-github-1986/sap-odata-python"
 Repository = "https://github.com/vaibhavgoel-github-1986/sap-odata-python"
+Documentation = "https://github.com/vaibhavgoel-github-1986/sap-odata-python#readme"
+Issues = "https://github.com/vaibhavgoel-github-1986/sap-odata-python/issues"
+Changelog = "https://github.com/vaibhavgoel-github-1986/sap-odata-python/releases"
 
 [tool.setuptools.packages.find]
 where = ["src"]
