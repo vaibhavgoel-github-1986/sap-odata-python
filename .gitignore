@@ -145,3 +145,4 @@ Thumbs.db
 *.key
 secrets.yaml
 credentials.yaml
+*.egg-info/
