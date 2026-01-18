@@ -47,28 +47,28 @@ client = ODataClient(
 
 # Simple query
 data = client.get(
-    service="zsd_get_subs_v2",
-    entity="Header",
+    service="zmy_product_api",
+    entity="Products",
     version="v4",
-    namespace="zsb_get_subs_v2",
-    filter="subscriptionRefId eq 'SR12345'"
+    namespace="zsb_product_api",
+    filter="ProductID eq '12345'"
 )
 
 # Complex nested $expand
 data = client.get(
-    service="zsd_get_subs_v2",
-    entity="Header",
+    service="zmy_order_api",
+    entity="Orders",
     version="v4",
-    namespace="zsb_get_subs_v2",
-    filter="subscriptionRefId eq 'SR12345'",
-    expand="partyAccounts($expand=contacts),majorLines($expand=smartAccounts,partyAccounts($expand=contacts)),minorLines($expand=discountAttributes)"
+    namespace="zsb_order_api",
+    filter="OrderID eq '12345'",
+    expand="Customer($expand=Contacts),LineItems($expand=Product,Discounts($expand=Details)),Payments($expand=BankAccount)"
 )
 
 # Access nested data
-for header in data["value"]:
-    print(f"Subscription: {header['subscriptionId']}")
-    for line in header.get("majorLines", []):
-        print(f"  Major Line: {line['partName']}")
+for order in data["value"]:
+    print(f"Order: {order['OrderID']}")
+    for line in order.get("LineItems", []):
+        print(f"  Line Item: {line['ProductName']}")
 ```
 
 ## SAP OData V2 (Gateway Services)
@@ -76,7 +76,7 @@ for header in data["value"]:
 ```python
 # Simple query
 data = client.get(
-    service="ZS4_SALES_ORDER_SRV",
+    service="ZMY_SALESORDER_SRV",
     entity="SalesOrderSet",
     version="v2",
     top=10,
@@ -85,24 +85,24 @@ data = client.get(
 
 # Entity with key in path
 data = client.get(
-    service="ZS4_CCW_SEND_SUBSCR_SNAPSHOT_SRV_01",
-    entity="HeaderSet(SubscriptionRefId='SR12345',WebOrderId='',SubscriptionId='')",
+    service="ZMY_CUSTOMER_SRV",
+    entity="CustomerSet(CustomerID='CUST001',Region='US')",
     version="v2"
 )
 
 # Complex nested $expand (V2 style with /)
 data = client.get(
-    service="ZS4_CCW_SEND_SUBSCR_SNAPSHOT_SRV_01",
-    entity="HeaderSet(SubscriptionRefId='SR12345',WebOrderId='',SubscriptionId='')",
+    service="ZMY_ORDER_SRV",
+    entity="OrderSet(OrderID='12345')",
     version="v2",
-    expand="HeaderToPrtyAccts/PrtyAcctsToContacts,HeaderToMjrLine/MjrLineToSmartAcct,HeaderToMjrLine/MjrLineToDscntAttr,HeaderToMnrLines/MnrLinesToDscntAttr"
+    expand="OrderToCustomer/CustomerToContacts,OrderToItems/ItemToProduct,OrderToItems/ItemToDiscounts,OrderToPayments/PaymentToBankAccount"
 )
 
 # V2 nested results are in "results" arrays
-for header in data["value"]:
-    print(f"Subscription: {header['SubscriptionId']}")
-    for line in header.get("HeaderToMjrLine", {}).get("results", []):
-        print(f"  Major Line: {line['PartName']}")
+for order in data["value"]:
+    print(f"Order: {order['OrderID']}")
+    for item in order.get("OrderToItems", {}).get("results", []):
+        print(f"  Item: {item['ProductName']}")
 ```
 
 ## Write Operations
@@ -110,7 +110,7 @@ for header in data["value"]:
 ```python
 # POST - Create
 new_order = client.post(
-    service="ZSALESORDER_SRV",
+    service="ZMY_SALESORDER_SRV",
     entity="SalesOrderSet",
     data={"CustomerID": "CUST001", "Amount": 1000},
     version="v2"
@@ -118,7 +118,7 @@ new_order = client.post(
 
 # PATCH - Update
 client.patch(
-    service="ZSALESORDER_SRV",
+    service="ZMY_SALESORDER_SRV",
     entity="SalesOrderSet('12345')",
     data={"Status": "APPROVED"},
     version="v2"
@@ -126,7 +126,7 @@ client.patch(
 
 # DELETE
 client.delete(
-    service="ZSALESORDER_SRV",
+    service="ZMY_SALESORDER_SRV",
     entity="SalesOrderSet('12345')",
     version="v2"
 )
@@ -136,10 +136,10 @@ client.delete(
 
 ```python
 # V4 metadata
-xml = client.metadata(service="zsd_get_subs_v2", namespace="zsb_get_subs_v2")
+xml = client.metadata(service="zmy_product_api", namespace="zsb_product_api")
 
 # V2 metadata
-xml = client.metadata(service="ZSALESORDER_SRV", version="v2")
+xml = client.metadata(service="ZMY_SALESORDER_SRV", version="v2")
 
 print(xml)  # Returns XML string with entity definitions
 ```
@@ -194,7 +194,7 @@ All responses are normalized to:
 
 ```python
 with ODataClient("https://sap-system.com", "user", "pass", client="100") as client:
-    data = client.get("ZSALESORDER_SRV", "SalesOrderSet", version="v2")
+    data = client.get("ZMY_SALESORDER_SRV", "SalesOrderSet", version="v2")
 # Session automatically closed
 ```
 
