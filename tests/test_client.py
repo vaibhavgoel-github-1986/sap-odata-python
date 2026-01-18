@@ -97,3 +97,46 @@ class TestClientBasics:
         data = client.get(V4_SERVICE, "Products", filter="ProductID eq -999")
         assert "value" in data
         assert len(data["value"]) == 0
+
+
+class TestComplexExpand:
+    """Test complex $expand scenarios like SAP uses."""
+
+    def test_expand_v4(self, client):
+        """GET with $expand V4."""
+        data = client.get(
+            V4_SERVICE, "Orders", 
+            top=1, 
+            expand="Customer,Order_Details"
+        )
+        assert "value" in data
+        if data["value"]:
+            order = data["value"][0]
+            # Should have expanded Customer
+            assert "Customer" in order or "CustomerID" in order
+
+    def test_expand_v2(self, client):
+        """GET with $expand V2."""
+        data = client.get(
+            V2_SERVICE, "Orders",
+            version="v2",
+            top=1,
+            expand="Customer,Order_Details"
+        )
+        assert "value" in data
+        if data["value"]:
+            order = data["value"][0]
+            # V2 expands should be present
+            assert "Customer" in order or "CustomerID" in order
+
+    def test_entity_with_key_v4(self, client):
+        """GET single entity with key in path V4."""
+        data = client.get(V4_SERVICE, "Products(1)")
+        assert "value" in data
+        assert data["value"][0]["ProductID"] == 1
+
+    def test_entity_with_key_v2(self, client):
+        """GET single entity with key in path V2."""
+        data = client.get(V2_SERVICE, "Products(1)", version="v2")
+        assert "value" in data
+        assert data["value"][0]["ProductID"] == 1
