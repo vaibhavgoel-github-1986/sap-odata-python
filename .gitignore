@@ -146,3 +146,4 @@ Thumbs.db
 secrets.yaml
 credentials.yaml
 *.egg-info/
+tests/test_sap_d2a.py
