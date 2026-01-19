@@ -75,19 +75,19 @@ class TestODataV2:
     """Test OData V2 operations - raw response format."""
 
     def test_get_products_v2(self, client):
-        """GET products V2 - returns {"d": [...]} or {"d": {"results": [...]}}."""
+        """GET products V2 - returns {"d": [...]}."""
         data = client.get(V2_SERVICE, "Products", version="v2", top=3)
         assert "d" in data
-        # V2 can return {"d": [...]} or {"d": {"results": [...]}}
-        items = client.get_value(data, "v2")
-        assert len(items) == 3
+        # Northwind V2 returns {"d": [...]} directly
+        assert isinstance(data["d"], list)
+        assert len(data["d"]) == 3
 
     def test_get_categories_v2(self, client):
         """GET categories V2."""
         data = client.get(V2_SERVICE, "Categories", version="v2", top=3)
         assert "d" in data
-        items = client.get_value(data, "v2")
-        assert "CategoryName" in items[0]
+        assert isinstance(data["d"], list)
+        assert "CategoryName" in data["d"][0]
 
     def test_get_single_entity_v2(self, client):
         """GET single entity V2 - returns {"d": {...}}."""
@@ -95,37 +95,6 @@ class TestODataV2:
         # Single entity: {"d": {"ProductID": 1, ...}}
         assert "d" in data
         assert data["d"]["ProductID"] == 1
-
-
-class TestHelperMethods:
-    """Test helper methods for extracting data."""
-
-    def test_get_value_v4(self, client):
-        """get_value() extracts value array from V4 response."""
-        data = client.get(V4_SERVICE, "Products", top=3)
-        items = client.get_value(data, "v4")
-        assert len(items) == 3
-        assert "ProductName" in items[0]
-
-    def test_get_value_v4_single(self, client):
-        """get_value() handles V4 single entity response."""
-        data = client.get(V4_SERVICE, "Products(1)")
-        items = client.get_value(data, "v4")
-        assert len(items) == 1
-        assert items[0]["ProductID"] == 1
-
-    def test_get_value_v2(self, client):
-        """get_value() extracts results from V2 response."""
-        data = client.get(V2_SERVICE, "Products", version="v2", top=3)
-        items = client.get_value(data, "v2")
-        assert len(items) == 3
-
-    def test_get_value_v2_single(self, client):
-        """get_value() handles V2 single entity response."""
-        data = client.get(V2_SERVICE, "Products(1)", version="v2")
-        items = client.get_value(data, "v2")
-        assert len(items) == 1
-        assert items[0]["ProductID"] == 1
 
 
 class TestMetadata:

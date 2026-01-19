@@ -280,35 +280,6 @@ class ODataClient:
             return d.get("__next", "")
         return ""
 
-    def get_value(self, response: Dict[str, Any], version: str = "v4") -> list:
-        """Extract value array from response.
-        
-        Args:
-            response: Response from get() call
-            version: OData version ('v2' or 'v4')
-            
-        Returns:
-            List of entities
-        """
-        if version == "v4":
-            value = response.get("value")
-            # Single entity response (no "value" key)
-            if value is None and "@odata.context" in response:
-                return [response]
-            return value if isinstance(value, list) else []
-        # V2: "d" can be a list, dict with "results", or single entity dict
-        d = response.get("d", {})
-        if isinstance(d, list):
-            # Some V2 services return {"d": [...]} directly
-            return d
-        if isinstance(d, dict):
-            results = d.get("results")
-            if results is not None:
-                return results if isinstance(results, list) else []
-            # Single entity (no "results" key)
-            return [d] if d else []
-        return []
-
     def close(self) -> None:
         """Close the session."""
         self.session.close()

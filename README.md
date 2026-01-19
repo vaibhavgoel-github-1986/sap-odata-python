@@ -51,8 +51,8 @@ response = client.get(
     top=10
 )
 
-# Extract data using helper methods
-for item in client.get_value(response, "v2"):
+# Access data directly
+for item in response["d"]:  # V2 format
     print(item)
 ```
 
@@ -80,7 +80,7 @@ response = client.get(
 )
 
 # Access nested data
-for order in client.get_value(response, "v4"):
+for order in response["value"]:  # V4 format
     print(f"Order: {order['OrderID']}")
     for item in order.get("LineItems", []):
         print(f"  Item: {item['ProductName']}")
@@ -115,7 +115,7 @@ response = client.get(
 )
 
 # V2 nested results use "results" arrays
-for order in client.get_value(response, "v2"):
+for order in response["d"]:  # or response["d"]["results"] depending on service
     for item in order.get("OrderToItems", {}).get("results", []):
         print(f"  Item: {item['ProductName']}")
 ```
@@ -154,7 +154,6 @@ client = ODataClient(
 | `patch(service, entity, data, version, namespace)` | Update record (PATCH) |
 | `delete(service, entity, version, namespace)` | Delete record (DELETE) |
 | `metadata(service, version, namespace)` | Get service metadata (XML) |
-| `get_value(response, version)` | Extract entity array from response |
 | `get_next_link(response, version)` | Extract pagination URL |
 
 ### Query Parameters
@@ -180,16 +179,12 @@ Responses are returned raw (as received from the API):
 {"d": [...]}  # or {"d": {"results": [...], "__next": "..."}}
 ```
 
-### Helper Methods
+### Pagination Helper
 
 ```python
-# Extract entities from response
-items = client.get_value(response, "v4")
-items = client.get_value(response, "v2")
-
-# Get pagination URL
-next_url = client.get_next_link(response, "v4")
-next_url = client.get_next_link(response, "v2")
+# Get next page URL
+next_url = client.get_next_link(response, "v4")  # from @odata.nextLink
+next_url = client.get_next_link(response, "v2")  # from d.__next
 ```
 
 ## Non-SAP OData Services
