@@ -1,19 +1,32 @@
-"""Tests for OData client."""
+"""Tests for OData client using public OData services.
+
+Public Test Services:
+- Northwind V4: https://services.odata.org/V4/Northwind/Northwind.svc
+- Northwind V2: https://services.odata.org/V2/Northwind/Northwind.svc
+- TripPin V4: https://services.odata.org/TripPinRESTierService (read-only)
+"""
 
 import pytest
 from sap_odata import ODataClient
 
 
-# Public Northwind service
+# Public OData services (non-SAP, so sap_mode=False)
 HOST = "https://services.odata.org"
 V4_SERVICE = "V4/Northwind/Northwind.svc"
 V2_SERVICE = "V2/Northwind/Northwind.svc"
+TRIPPIN_SERVICE = "TripPinRESTierService"
 
 
 @pytest.fixture
 def client():
-    """Create client for public Northwind service."""
-    return ODataClient(HOST)
+    """Create client for public Northwind service (non-SAP mode)."""
+    return ODataClient(HOST, sap_mode=False)
+
+
+@pytest.fixture
+def trippin_client():
+    """Create client for TripPin service (non-SAP mode)."""
+    return ODataClient(HOST, sap_mode=False)
 
 
 class TestODataV4:
@@ -88,7 +101,7 @@ class TestClientBasics:
 
     def test_context_manager(self):
         """Test context manager."""
-        with ODataClient(HOST) as client:
+        with ODataClient(HOST, sap_mode=False) as client:
             data = client.get(V4_SERVICE, "Products", top=1)
             assert "value" in data
 
@@ -97,6 +110,16 @@ class TestClientBasics:
         data = client.get(V4_SERVICE, "Products", filter="ProductID eq -999")
         assert "value" in data
         assert len(data["value"]) == 0
+    
+    def test_sap_mode_default_true(self):
+        """Default sap_mode should be True."""
+        client = ODataClient("https://any-host.com")
+        assert client.sap_mode is True
+    
+    def test_sap_mode_explicit_false(self):
+        """Explicit sap_mode=False should be respected."""
+        client = ODataClient("https://any-host.com", sap_mode=False)
+        assert client.sap_mode is False
 
 
 class TestComplexExpand:
@@ -140,6 +163,55 @@ class TestComplexExpand:
         data = client.get(V2_SERVICE, "Products(1)", version="v2")
         assert "value" in data
         assert data["value"][0]["ProductID"] == 1
+
+
+class TestTripPin:
+    """Test TripPin OData V4 service."""
+
+    def test_get_people(self, trippin_client):
+        """GET people from TripPin."""
+        data = trippin_client.get(TRIPPIN_SERVICE, "People", top=3)
+        assert "value" in data
+        assert len(data["value"]) <= 3
+        assert "FirstName" in data["value"][0]
+
+    def test_get_airlines(self, trippin_client):
+        """GET airlines from TripPin."""
+        data = trippin_client.get(TRIPPIN_SERVICE, "Airlines")
+        assert "value" in data
+        assert "AirlineCode" in data["value"][0]
+
+    def test_get_airports(self, trippin_client):
+        """GET airports from TripPin."""
+        data = trippin_client.get(TRIPPIN_SERVICE, "Airports", top=5)
+        assert "value" in data
+        assert "IcaoCode" in data["value"][0]
+
+    def test_filter_people(self, trippin_client):
+        """GET people with filter."""
+        data = trippin_client.get(
+            TRIPPIN_SERVICE, "People",
+            filter="FirstName eq 'Russell'"
+        )
+        assert "value" in data
+        if data["value"]:
+            assert data["value"][0]["FirstName"] == "Russell"
+
+    def test_single_person(self, trippin_client):
+        """GET single person by key."""
+        data = trippin_client.get(TRIPPIN_SERVICE, "People('russellwhyte')")
+        assert "value" in data
+        assert data["value"][0]["UserName"] == "russellwhyte"
+
+    def test_expand_trips(self, trippin_client):
+        """GET person with expanded trips."""
+        data = trippin_client.get(
+            TRIPPIN_SERVICE, "People('russellwhyte')",
+            expand="Trips"
+        )
+        assert "value" in data
+        person = data["value"][0]
+        assert "Trips" in person or "UserName" in person
 
 
 class TestValidation:

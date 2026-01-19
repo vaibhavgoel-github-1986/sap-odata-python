@@ -49,11 +49,9 @@ class ODataClient:
         self.client = client
         self.timeout = timeout
         
-        # SAP mode: explicit > auto-detect (client provided or 'sap' in host)
-        if sap_mode is not None:
-            self.sap_mode = sap_mode
-        else:
-            self.sap_mode = bool(client) or "sap" in host.lower()
+        # SAP mode: True by default (primary use case is SAP systems)
+        # Set to False explicitly for non-SAP services like Northwind, TripPin
+        self.sap_mode = sap_mode if sap_mode is not None else True
 
         self.session = requests.Session()
         self.session.verify = verify_ssl
