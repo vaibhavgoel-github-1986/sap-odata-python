@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sap-odata-python"
-version = "1.0.7"
+version = "1.0.8"
 description = "AI/LLM-friendly Python client for SAP OData V2 and V4 APIs - single generic function for all operations"
-readme = "README.md"
+readme = {file = "README.md", content-type = "text/markdown"}
 license = "Apache-2.0"
 authors = [{name = "Vaibhav Goel"}]
 maintainers = [{name = "Vaibhav Goel"}]
