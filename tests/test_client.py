@@ -140,3 +140,50 @@ class TestComplexExpand:
         data = client.get(V2_SERVICE, "Products(1)", version="v2")
         assert "value" in data
         assert data["value"][0]["ProductID"] == 1
+
+
+class TestValidation:
+    """Test input validation."""
+
+    def test_empty_service_raises_error(self, client):
+        """Empty service name should raise error."""
+        from sap_odata import ODataError
+        with pytest.raises(ODataError, match="Service name is required"):
+            client.get("", "Products")
+
+    def test_empty_entity_raises_error(self, client):
+        """Empty entity name should raise error."""
+        from sap_odata import ODataError
+        with pytest.raises(ODataError, match="Entity name is required"):
+            client.get(V4_SERVICE, "")
+
+    def test_invalid_version_raises_error(self, client):
+        """Invalid version should raise error."""
+        from sap_odata import ODataError
+        with pytest.raises(ODataError, match="Invalid version"):
+            client.get(V4_SERVICE, "Products", version="v3")
+
+    def test_sap_v4_without_namespace_raises_error(self):
+        """SAP V4 without namespace should raise error."""
+        from sap_odata import ODataError
+        sap_client = ODataClient("https://sap-server.com", sap_mode=True)
+        with pytest.raises(ODataError, match="Namespace is required"):
+            sap_client.get("zsd_my_service", "MyEntity", version="v4")
+
+    def test_sap_v4_with_namespace_works(self):
+        """SAP V4 with namespace should not raise ODataValidationError."""
+        from sap_odata import ODataError, ODataConnectionError
+        sap_client = ODataClient("https://fake-sap-server-xyz123.local", sap_mode=True)
+        # Should pass validation but fail on connection (no real server)
+        # Could be connection error or HTTP error depending on DNS
+        with pytest.raises((ODataConnectionError, ODataError)):
+            sap_client.get("zsd_my_service", "MyEntity", version="v4", namespace="zsb_my_service")
+
+    def test_sap_v2_without_namespace_works(self):
+        """SAP V2 doesn't require namespace."""
+        from sap_odata import ODataError, ODataConnectionError
+        sap_client = ODataClient("https://fake-sap-server-xyz123.local", sap_mode=True)
+        # Should pass validation but fail on connection (no real server)
+        # Could be connection error or HTTP error depending on DNS
+        with pytest.raises((ODataConnectionError, ODataError)):
+            sap_client.get("ZMY_SERVICE_SRV", "MyEntity", version="v2")

@@ -121,6 +121,7 @@ class ODataClient:
         self, service: str, version: Literal["v2", "v4"] = "v4", namespace: str = ""
     ) -> str:
         """Get service metadata XML."""
+        self._validate_inputs(service, "$metadata", version, namespace)
         url = self._build_url(service, "$metadata", version, namespace)
         response = self.session.get(
             url, params=self._get_params({}), headers={"Accept": "application/xml"}, timeout=self.timeout
@@ -139,6 +140,9 @@ class ODataClient:
         body: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Make HTTP request."""
+        # Validate inputs
+        self._validate_inputs(service, entity, version, namespace)
+        
         url = self._build_url(service, entity, version, namespace)
         params = self._get_params(query_params or {}, version, method)
         headers = self._get_headers(method, service, version, namespace)
@@ -161,6 +165,26 @@ class ODataClient:
             raise ODataError(f"HTTP {e.response.status_code}: {e.response.text[:200]}")
 
         return self._normalize_response(response, version)
+
+    def _validate_inputs(
+        self, service: str, entity: str, version: str, namespace: str
+    ) -> None:
+        """Validate input parameters."""
+        if not service or not service.strip():
+            raise ODataError("Service name is required")
+        
+        if not entity or not entity.strip():
+            raise ODataError("Entity name is required")
+        
+        if version not in ("v2", "v4"):
+            raise ODataError(f"Invalid version '{version}'. Must be 'v2' or 'v4'")
+        
+        # SAP V4 requires namespace for proper URL building
+        if self.sap_mode and version == "v4" and not namespace:
+            raise ODataError(
+                "Namespace is required for SAP OData V4 services. "
+                "Example: client.get('zsd_my_service', 'MyEntity', version='v4', namespace='zsb_my_service')"
+            )
 
     def _build_url(self, service: str, entity: str, version: str, namespace: str) -> str:
         """Build the service URL."""
