@@ -13,7 +13,8 @@ Simple, AI/LLM-friendly Python client for SAP OData V2 and V4 services.
 - **Simple API**: One client, one method signature for all operations
 - **Automatic URL Building**: Handles complex SAP URL patterns automatically
 - **Input Validation**: Clear error messages for missing parameters
-- **Normalized Responses**: Consistent `{"value": [...]}` format for both V2 and V4
+- **Raw Responses**: Returns actual API response - use helper methods to extract data
+- **Helper Methods**: `get_value()` and `get_next_link()` for easy data extraction
 
 ## Installation
 
@@ -53,8 +54,8 @@ data = client.get(
     top=10
 )
 
-# Results are always in data["value"]
-for item in data["value"]:
+# Use helper methods to extract data
+for item in client.get_value(data, "v2"):
     print(item)
 ```
 
@@ -94,6 +95,8 @@ client = ODataClient(
 | `patch(service, entity, data, version, namespace)` | Update record (PATCH) |
 | `delete(service, entity, version, namespace)` | Delete record (DELETE) |
 | `metadata(service, version, namespace)` | Get service metadata (XML) |
+| `get_value(response, version)` | Extract entity array from response |
+| `get_next_link(response, version)` | Extract pagination URL from response |
 
 ### Query Parameters (for GET)
 
@@ -135,8 +138,8 @@ data = client.get(
     expand="Customer($expand=Contacts),LineItems($expand=Product,Discounts($expand=Details)),Payments($expand=BankAccount)"
 )
 
-# Access nested data
-for order in data["value"]:
+# Access nested data using helper method
+for order in client.get_value(data, "v4"):
     print(f"Order: {order['OrderID']}")
     for line in order.get("LineItems", []):
         print(f"  Line Item: {line['ProductName']}")
@@ -170,7 +173,7 @@ data = client.get(
 )
 
 # V2 nested results are in "results" arrays
-for order in data["value"]:
+for order in client.get_value(data, "v2"):
     print(f"Order: {order['OrderID']}")
     for item in order.get("OrderToItems", {}).get("results", []):
         print(f"  Item: {item['ProductName']}")
@@ -240,13 +243,47 @@ data = client.get("TripPinRESTierService", "Airlines")
 
 ## Response Format
 
-All responses are normalized to:
+Responses are returned **raw** (as received from the API):
+
 ```python
-{"value": [{"field": "value"}, ...]}
+# V4 response format
+{"@odata.context": "...", "value": [{...}, {...}], "@odata.nextLink": "..."}
+
+# V2 response format  
+{"d": [{...}, {...}]}  # or {"d": {"results": [...], "__next": "..."}}
 ```
 
-- **V4**: Native format, returned as-is
-- **V2**: Converted from `{"d": {"results": [...]}}` to `{"value": [...]}`
+### Helper Methods
+
+Use helper methods to extract data consistently:
+
+```python
+# Extract entities from response
+items = client.get_value(response, "v4")  # Returns list
+items = client.get_value(response, "v2")  # Returns list
+
+# Get pagination URL
+next_url = client.get_next_link(response, "v4")  # Returns URL or ""
+next_url = client.get_next_link(response, "v2")  # Returns URL or ""
+```
+
+### Pagination Example
+
+```python
+# Fetch all pages
+all_items = []
+response = client.get("ZMY_SRV", "ItemSet", version="v2", top=100)
+
+while True:
+    all_items.extend(client.get_value(response, "v2"))
+    next_link = client.get_next_link(response, "v2")
+    if not next_link:
+        break
+    # Fetch next page using the full URL
+    response = client.session.get(next_link).json()
+
+print(f"Total items: {len(all_items)}")
+```
 
 ## Error Handling
 
