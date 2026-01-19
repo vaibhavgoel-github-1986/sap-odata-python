@@ -84,6 +84,38 @@ for order in response["value"]:  # V4 format
     print(f"Order: {order['OrderID']}")
     for item in order.get("LineItems", []):
         print(f"  Item: {item['ProductName']}")
+
+# Count only (no data returned) - calls /Entity/$count
+total_products = client.count(
+    service="zsd_product_api",
+    entity="Products",
+    version="v4",
+    namespace="zsb_product_api"
+)
+print(f"Total products: {total_products}")  # 245
+
+# Count with filter
+open_orders = client.count(
+    service="zsd_order_api",
+    entity="Orders",
+    version="v4",
+    namespace="zsb_order_api",
+    filter="Status eq 'OPEN'"
+)
+print(f"Open orders: {open_orders}")  # 42
+
+# Inline count (data + total count)
+response = client.get(
+    service="zsd_product_api",
+    entity="Products",
+    version="v4",
+    namespace="zsb_product_api",
+    top=10,
+    count=True  # Adds $count=true
+)
+total = client.get_count(response, "v4")  # from @odata.count
+items = client.get_value(response, "v4")  # from value[]
+print(f"Showing {len(items)} of {total} products")
 ```
 
 ## SAP OData V2 Examples
@@ -98,6 +130,26 @@ response = client.get(
     select="OrderID,CustomerID,Amount",
     top=100
 )
+
+# Count only (V2)
+total = client.count(
+    service="ZMY_SALESORDER_SRV",
+    entity="SalesOrderSet",
+    version="v2"
+)
+print(f"Total orders: {total}")
+
+# Inline count (V2)
+response = client.get(
+    service="ZMY_SALESORDER_SRV",
+    entity="SalesOrderSet",
+    version="v2",
+    top=20,
+    count=True
+)
+# V2 response: {"d": {"__count": "245", "results": [...]}}
+total = client.get_count(response, "v2")  # from d.__count
+items = client.get_value(response, "v2")  # from d.results or d[]
 
 # Entity with key in path
 response = client.get(
@@ -151,9 +203,13 @@ client = ODataClient(
 |--------|-------------|
 | `get(service, entity, version, namespace, **params)` | Read data (GET) |
 | `post(service, entity, data, version, namespace)` | Create record (POST) |
+| `put(service, entity, data, version, namespace)` | Replace record (PUT) |
 | `patch(service, entity, data, version, namespace)` | Update record (PATCH) |
 | `delete(service, entity, version, namespace)` | Delete record (DELETE) |
+| `count(service, entity, version, namespace, **params)` | Get count only (no data) |
 | `metadata(service, version, namespace)` | Get service metadata (XML) |
+| `get_value(response, version)` | Extract data list from response |
+| `get_count(response, version)` | Extract inline count from response |
 | `get_next_link(response, version)` | Extract pagination URL |
 
 ### Query Parameters
@@ -166,6 +222,39 @@ client = ODataClient(
 | `select` | `select="ID,Name"` | Select fields |
 | `expand` | `expand="Items"` | Expand navigation |
 | `orderby` | `orderby="Name asc"` | Sort results |
+| `count` | `count=True` | Include inline count |
+| `search` | `search="keyword"` | Free text search |
+
+## Counting Records
+
+Two ways to get counts:
+
+### 1. Count Only (no data) - `/Entity/$count`
+
+```python
+# Count all products
+total = client.count("zsd_product_api", "Products", version="v4", namespace="zsb_product_api")
+print(total)  # 245
+
+# Count with filter
+open_orders = client.count("ZMY_SRV", "Orders", version="v2", filter="Status eq 'OPEN'")
+print(open_orders)  # 42
+```
+
+### 2. Inline Count (with data) - `$count=true`
+
+```python
+# Get data with total count
+response = client.get("zsd_product_api", "Products", version="v4", namespace="zsb_product_api", 
+                      top=10, count=True)
+
+# V4: {"@odata.count": 245, "value": [...]}
+total = client.get_count(response, "v4")  # 245
+items = client.get_value(response, "v4")  # [...]
+
+# V2: {"d": {"__count": "245", "results": [...]}}
+total = client.get_count(response, "v2")  # 245
+```
 
 ## Response Format
 
@@ -173,15 +262,25 @@ Responses are returned raw (as received from the API):
 
 ```python
 # V4 response
-{"@odata.context": "...", "value": [...], "@odata.nextLink": "..."}
+{"@odata.context": "...", "value": [...], "@odata.nextLink": "...", "@odata.count": 100}
 
 # V2 response
-{"d": [...]}  # or {"d": {"results": [...], "__next": "..."}}
+{"d": [...]}  # or {"d": {"results": [...], "__next": "...", "__count": "100"}}
 ```
 
-### Pagination Helper
+### Helper Methods
+
+Use helper methods to extract data from responses:
 
 ```python
+response = client.get("service", "Products", top=10, count=True)
+
+# Extract data list
+items = client.get_value(response, "v4")  # Returns list from "value" or "d"
+
+# Get total count (if $count was requested)
+total = client.get_count(response, "v4")  # Returns @odata.count or -1
+
 # Get next page URL
 next_url = client.get_next_link(response, "v4")  # from @odata.nextLink
 next_url = client.get_next_link(response, "v2")  # from d.__next

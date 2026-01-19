@@ -105,6 +105,17 @@ class ODataClient:
         """PATCH request to update data."""
         return self._request("PATCH", service, entity, version, namespace, body=data)
 
+    def put(
+        self,
+        service: str,
+        entity: str,
+        data: Dict[str, Any],
+        version: Literal["v2", "v4"] = "v4",
+        namespace: str = "",
+    ) -> Dict[str, Any]:
+        """PUT request to fully replace data."""
+        return self._request("PUT", service, entity, version, namespace, body=data)
+
     def delete(
         self,
         service: str,
@@ -114,6 +125,56 @@ class ODataClient:
     ) -> Dict[str, Any]:
         """DELETE request to remove data."""
         return self._request("DELETE", service, entity, version, namespace)
+
+    def count(
+        self,
+        service: str,
+        entity: str,
+        version: Literal["v2", "v4"] = "v4",
+        namespace: str = "",
+        **query_params,
+    ) -> int:
+        """Get count of entities (without fetching data).
+        
+        Calls /Entity/$count endpoint which returns just the count number.
+        
+        Args:
+            service: Service name or path
+            entity: Entity name (e.g., 'Products')
+            version: OData version ('v2' or 'v4')
+            namespace: Service namespace (for SAP V4)
+            **query_params: Query params like filter="Status eq 'OPEN'"
+            
+        Returns:
+            Count as integer
+            
+        Example:
+            >>> # Count all products
+            >>> total = client.count("zsd_my_service", "Products", version="v4", namespace="zsb_my_service")
+            >>> print(total)  # 245
+            
+            >>> # Count with filter
+            >>> open_count = client.count("ZMY_SRV", "Orders", version="v2", filter="Status eq 'OPEN'")
+            >>> print(open_count)  # 42
+        """
+        self._validate_inputs(service, entity, version, namespace)
+        url = self._build_url(service, f"{entity}/$count", version, namespace)
+        params = self._get_params(query_params or {}, version, "GET")
+        
+        try:
+            response = self.session.get(
+                url, params=params, headers={"Accept": "text/plain"}, timeout=self.timeout
+            )
+            response.raise_for_status()
+            return int(response.text.strip())
+        except requests.exceptions.ConnectionError as e:
+            raise ODataConnectionError(f"Connection failed: {e}")
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 401:
+                raise ODataAuthError("Authentication failed")
+            raise ODataError(f"HTTP {e.response.status_code}: {e.response.text[:200]}")
+        except ValueError:
+            raise ODataError(f"Invalid count response: {response.text[:100]}")
 
     def metadata(
         self, service: str, version: Literal["v2", "v4"] = "v4", namespace: str = ""
@@ -205,7 +266,8 @@ class ODataClient:
 
         # Convert shorthand to OData format
         mapping = {"top": "$top", "skip": "$skip", "filter": "$filter", 
-                   "select": "$select", "expand": "$expand", "orderby": "$orderby"}
+                   "select": "$select", "expand": "$expand", "orderby": "$orderby",
+                   "count": "$count", "search": "$search"}
         for key, value in params.items():
             result[mapping.get(key, key)] = value
 
@@ -279,6 +341,43 @@ class ODataClient:
         if isinstance(d, dict):
             return d.get("__next", "")
         return ""
+
+    def get_value(self, response: Dict[str, Any], version: str = "v4") -> list:
+        """Extract data values from response.
+        
+        Args:
+            response: Response from get() call
+            version: OData version ('v2' or 'v4')
+            
+        Returns:
+            List of items from the response
+        """
+        if version == "v4":
+            return response.get("value", [])
+        # V2: data is inside "d" (can be list or dict with "results")
+        d = response.get("d", [])
+        if isinstance(d, dict):
+            return d.get("results", [])
+        return d if isinstance(d, list) else []
+
+    def get_count(self, response: Dict[str, Any], version: str = "v4") -> int:
+        """Extract total count from response (if $count was requested).
+        
+        Args:
+            response: Response from get() call with $count
+            version: OData version ('v2' or 'v4')
+            
+        Returns:
+            Total count or -1 if not available
+        """
+        if version == "v4":
+            return response.get("@odata.count", -1)
+        # V2: count is inside "d.__count"
+        d = response.get("d", {})
+        if isinstance(d, dict):
+            count = d.get("__count")
+            return int(count) if count is not None else -1
+        return -1
 
     def close(self) -> None:
         """Close the session."""
