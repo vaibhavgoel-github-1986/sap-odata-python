@@ -52,9 +52,72 @@ response = client.get(
 )
 
 # Extract data using helper methods
-items = client.get_value(response, "v4")
-for item in items:
+for item in client.get_value(response, "v2"):
     print(item)
+```
+
+## SAP OData V4 Examples
+
+```python
+# Simple query with filter
+response = client.get(
+    service="zsd_product_api",
+    entity="Products",
+    version="v4",
+    namespace="zsb_product_api",
+    filter="ProductID eq '12345'",
+    select="ProductID,Name,Price"
+)
+
+# Complex nested $expand
+response = client.get(
+    service="zsd_order_api",
+    entity="Orders",
+    version="v4",
+    namespace="zsb_order_api",
+    filter="OrderID eq '12345'",
+    expand="Customer,LineItems($expand=Product)"
+)
+
+# Access nested data
+for order in client.get_value(response, "v4"):
+    print(f"Order: {order['OrderID']}")
+    for item in order.get("LineItems", []):
+        print(f"  Item: {item['ProductName']}")
+```
+
+## SAP OData V2 Examples
+
+```python
+# Query with filter and select
+response = client.get(
+    service="ZMY_SALESORDER_SRV",
+    entity="SalesOrderSet",
+    version="v2",
+    filter="Status eq 'OPEN'",
+    select="OrderID,CustomerID,Amount",
+    top=100
+)
+
+# Entity with key in path
+response = client.get(
+    service="ZMY_CUSTOMER_SRV",
+    entity="CustomerSet('CUST001')",
+    version="v2"
+)
+
+# Complex nested $expand (V2 uses / for nested)
+response = client.get(
+    service="ZMY_ORDER_SRV",
+    entity="OrderSet",
+    version="v2",
+    expand="OrderToCustomer,OrderToItems/ItemToProduct"
+)
+
+# V2 nested results use "results" arrays
+for order in client.get_value(response, "v2"):
+    for item in order.get("OrderToItems", {}).get("results", []):
+        print(f"  Item: {item['ProductName']}")
 ```
 
 ## SAP URL Patterns (Handled Automatically)
