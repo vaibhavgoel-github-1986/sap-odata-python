@@ -9,7 +9,7 @@ Example:
     ...     print(product["ProductName"])
 """
 
-__version__ = "1.0.0"
+__version__ = "1.0.6"
 __author__ = "Vaibhav Goel"
 
 from .client import ODataClient
