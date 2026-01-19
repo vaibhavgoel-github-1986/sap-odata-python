@@ -29,6 +29,7 @@ class ODataClient:
         username: str = "",
         password: str = "",
         client: str = "",
+        sap_mode: Optional[bool] = None,
         verify_ssl: bool = True,
         timeout: int = 60,
     ):
@@ -40,13 +41,19 @@ class ODataClient:
             username: Username for auth (optional)
             password: Password for auth (optional)
             client: SAP client number (optional)
+            sap_mode: Use SAP URL patterns and features (auto-detected if None)
             verify_ssl: Verify SSL certificates
             timeout: Request timeout in seconds
         """
         self.host = host.rstrip("/")
         self.client = client
         self.timeout = timeout
-        self.is_sap = bool(client) or "sap" in host.lower()
+        
+        # SAP mode: explicit > auto-detect (client provided or 'sap' in host)
+        if sap_mode is not None:
+            self.sap_mode = sap_mode
+        else:
+            self.sap_mode = bool(client) or "sap" in host.lower()
 
         self.session = requests.Session()
         self.session.verify = verify_ssl
@@ -157,7 +164,7 @@ class ODataClient:
 
     def _build_url(self, service: str, entity: str, version: str, namespace: str) -> str:
         """Build the service URL."""
-        if self.is_sap:
+        if self.sap_mode:
             if version == "v4":
                 ns = (namespace or service).lower()
                 path = f"{ns}/srvd_a2x/sap/{service.lower()}/0001"
@@ -181,7 +188,7 @@ class ODataClient:
             result[mapping.get(key, key)] = value
 
         # SAP client
-        if self.is_sap and self.client and method == "GET":
+        if self.sap_mode and self.client and method == "GET":
             result["sap-client"] = self.client
 
         # V2 needs explicit JSON format
@@ -197,7 +204,7 @@ class ODataClient:
         headers = {"Accept": "application/json", "Content-Type": "application/json"}
 
         # CSRF token for write operations (SAP only)
-        if method in ("POST", "PATCH", "PUT", "DELETE") and self.is_sap:
+        if method in ("POST", "PATCH", "PUT", "DELETE") and self.sap_mode:
             if not self._csrf_token:
                 self._fetch_csrf_token(service, version, namespace)
             if self._csrf_token:
