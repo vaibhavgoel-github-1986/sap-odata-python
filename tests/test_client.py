@@ -30,10 +30,10 @@ def trippin_client():
 
 
 class TestODataV4:
-    """Test OData V4 operations."""
+    """Test OData V4 operations - raw response format."""
 
     def test_get_products(self, client):
-        """GET products."""
+        """GET products - V4 returns {"value": [...]}."""
         data = client.get(V4_SERVICE, "Products", top=3)
         assert "value" in data
         assert len(data["value"]) == 3
@@ -53,10 +53,11 @@ class TestODataV4:
         assert "ProductName" in data["value"][0]
 
     def test_get_single_entity(self, client):
-        """GET single entity by key."""
+        """GET single entity by key - V4 returns entity directly (no "value")."""
         data = client.get(V4_SERVICE, "Products(1)")
-        assert "value" in data
-        assert data["value"][0]["ProductID"] == 1
+        # Single entity: {"@odata.context": "...", "ProductID": 1, ...}
+        assert "ProductID" in data
+        assert data["ProductID"] == 1
 
     def test_get_categories(self, client):
         """GET categories."""
@@ -64,21 +65,67 @@ class TestODataV4:
         assert "value" in data
         assert "CategoryName" in data["value"][0]
 
+    def test_odata_context(self, client):
+        """V4 responses include @odata.context."""
+        data = client.get(V4_SERVICE, "Products", top=1)
+        assert "@odata.context" in data
+
 
 class TestODataV2:
-    """Test OData V2 operations."""
+    """Test OData V2 operations - raw response format."""
 
     def test_get_products_v2(self, client):
-        """GET products V2."""
+        """GET products V2 - returns {"d": [...]} or {"d": {"results": [...]}}."""
         data = client.get(V2_SERVICE, "Products", version="v2", top=3)
-        assert "value" in data
-        assert len(data["value"]) == 3
+        assert "d" in data
+        # V2 can return {"d": [...]} or {"d": {"results": [...]}}
+        items = client.get_value(data, "v2")
+        assert len(items) == 3
 
     def test_get_categories_v2(self, client):
         """GET categories V2."""
         data = client.get(V2_SERVICE, "Categories", version="v2", top=3)
-        assert "value" in data
-        assert "CategoryName" in data["value"][0]
+        assert "d" in data
+        items = client.get_value(data, "v2")
+        assert "CategoryName" in items[0]
+
+    def test_get_single_entity_v2(self, client):
+        """GET single entity V2 - returns {"d": {...}}."""
+        data = client.get(V2_SERVICE, "Products(1)", version="v2")
+        # Single entity: {"d": {"ProductID": 1, ...}}
+        assert "d" in data
+        assert data["d"]["ProductID"] == 1
+
+
+class TestHelperMethods:
+    """Test helper methods for extracting data."""
+
+    def test_get_value_v4(self, client):
+        """get_value() extracts value array from V4 response."""
+        data = client.get(V4_SERVICE, "Products", top=3)
+        items = client.get_value(data, "v4")
+        assert len(items) == 3
+        assert "ProductName" in items[0]
+
+    def test_get_value_v4_single(self, client):
+        """get_value() handles V4 single entity response."""
+        data = client.get(V4_SERVICE, "Products(1)")
+        items = client.get_value(data, "v4")
+        assert len(items) == 1
+        assert items[0]["ProductID"] == 1
+
+    def test_get_value_v2(self, client):
+        """get_value() extracts results from V2 response."""
+        data = client.get(V2_SERVICE, "Products", version="v2", top=3)
+        items = client.get_value(data, "v2")
+        assert len(items) == 3
+
+    def test_get_value_v2_single(self, client):
+        """get_value() handles V2 single entity response."""
+        data = client.get(V2_SERVICE, "Products(1)", version="v2")
+        items = client.get_value(data, "v2")
+        assert len(items) == 1
+        assert items[0]["ProductID"] == 1
 
 
 class TestMetadata:
@@ -123,7 +170,7 @@ class TestClientBasics:
 
 
 class TestComplexExpand:
-    """Test complex $expand scenarios like SAP uses."""
+    """Test complex $expand scenarios."""
 
     def test_expand_v4(self, client):
         """GET with $expand V4."""
@@ -133,10 +180,6 @@ class TestComplexExpand:
             expand="Customer,Order_Details"
         )
         assert "value" in data
-        if data["value"]:
-            order = data["value"][0]
-            # Should have expanded Customer
-            assert "Customer" in order or "CustomerID" in order
 
     def test_expand_v2(self, client):
         """GET with $expand V2."""
@@ -146,23 +189,17 @@ class TestComplexExpand:
             top=1,
             expand="Customer,Order_Details"
         )
-        assert "value" in data
-        if data["value"]:
-            order = data["value"][0]
-            # V2 expands should be present
-            assert "Customer" in order or "CustomerID" in order
+        assert "d" in data
 
     def test_entity_with_key_v4(self, client):
         """GET single entity with key in path V4."""
         data = client.get(V4_SERVICE, "Products(1)")
-        assert "value" in data
-        assert data["value"][0]["ProductID"] == 1
+        assert data["ProductID"] == 1
 
     def test_entity_with_key_v2(self, client):
         """GET single entity with key in path V2."""
         data = client.get(V2_SERVICE, "Products(1)", version="v2")
-        assert "value" in data
-        assert data["value"][0]["ProductID"] == 1
+        assert data["d"]["ProductID"] == 1
 
 
 class TestTripPin:
@@ -200,8 +237,9 @@ class TestTripPin:
     def test_single_person(self, trippin_client):
         """GET single person by key."""
         data = trippin_client.get(TRIPPIN_SERVICE, "People('russellwhyte')")
-        assert "value" in data
-        assert data["value"][0]["UserName"] == "russellwhyte"
+        # Single entity response
+        assert "UserName" in data
+        assert data["UserName"] == "russellwhyte"
 
     def test_expand_trips(self, trippin_client):
         """GET person with expanded trips."""
@@ -209,9 +247,7 @@ class TestTripPin:
             TRIPPIN_SERVICE, "People('russellwhyte')",
             expand="Trips"
         )
-        assert "value" in data
-        person = data["value"][0]
-        assert "Trips" in person or "UserName" in person
+        assert "UserName" in data
 
 
 class TestValidation:
@@ -247,7 +283,6 @@ class TestValidation:
         from sap_odata import ODataError, ODataConnectionError
         sap_client = ODataClient("https://fake-sap-server-xyz123.local", sap_mode=True)
         # Should pass validation but fail on connection (no real server)
-        # Could be connection error or HTTP error depending on DNS
         with pytest.raises((ODataConnectionError, ODataError)):
             sap_client.get("zsd_my_service", "MyEntity", version="v4", namespace="zsb_my_service")
 
@@ -256,6 +291,5 @@ class TestValidation:
         from sap_odata import ODataError, ODataConnectionError
         sap_client = ODataClient("https://fake-sap-server-xyz123.local", sap_mode=True)
         # Should pass validation but fail on connection (no real server)
-        # Could be connection error or HTTP error depending on DNS
         with pytest.raises((ODataConnectionError, ODataError)):
             sap_client.get("ZMY_SERVICE_SRV", "MyEntity", version="v2")

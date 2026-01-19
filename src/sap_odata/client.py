@@ -162,7 +162,7 @@ class ODataClient:
                 raise ODataAuthError("Authentication failed")
             raise ODataError(f"HTTP {e.response.status_code}: {e.response.text[:200]}")
 
-        return self._normalize_response(response, version)
+        return self._parse_response(response, version)
 
     def _validate_inputs(
         self, service: str, entity: str, version: str, namespace: str
@@ -250,31 +250,64 @@ class ODataClient:
         except Exception:
             pass  # CSRF not required for all services
 
-    def _normalize_response(
+    def _parse_response(
         self, response: requests.Response, version: str
     ) -> Dict[str, Any]:
-        """Normalize response to consistent format."""
+        """Parse response and return raw JSON."""
         if response.status_code == 204 or not response.text.strip():
-            return {"value": []}
+            return {"value": []} if version == "v4" else {"d": []}
 
         try:
-            data = response.json()
+            return response.json()
         except ValueError:
-            return {"value": [], "raw": response.text}
+            return {"value": [], "raw": response.text} if version == "v4" else {"d": [], "raw": response.text}
 
-        # V2 format: {"d": {"results": [...]}} or {"d": {...}}
-        if version == "v2" and "d" in data:
-            d = data["d"]
-            if isinstance(d, dict) and "results" in d:
-                return {"value": d["results"]}
-            if isinstance(d, list):
-                return {"value": d}
-            return {"value": [d] if d else []}
+    def get_next_link(self, response: Dict[str, Any], version: str = "v4") -> str:
+        """Extract next page URL from response.
+        
+        Args:
+            response: Response from get() call
+            version: OData version ('v2' or 'v4')
+            
+        Returns:
+            Next page URL or empty string if no more pages
+        """
+        if version == "v4":
+            return response.get("@odata.nextLink", "")
+        # V2: __next is inside "d"
+        d = response.get("d", {})
+        if isinstance(d, dict):
+            return d.get("__next", "")
+        return ""
 
-        # V4 format or already normalized
-        if "value" not in data:
-            return {"value": [data] if data else []}
-        return data
+    def get_value(self, response: Dict[str, Any], version: str = "v4") -> list:
+        """Extract value array from response.
+        
+        Args:
+            response: Response from get() call
+            version: OData version ('v2' or 'v4')
+            
+        Returns:
+            List of entities
+        """
+        if version == "v4":
+            value = response.get("value")
+            # Single entity response (no "value" key)
+            if value is None and "@odata.context" in response:
+                return [response]
+            return value if isinstance(value, list) else []
+        # V2: "d" can be a list, dict with "results", or single entity dict
+        d = response.get("d", {})
+        if isinstance(d, list):
+            # Some V2 services return {"d": [...]} directly
+            return d
+        if isinstance(d, dict):
+            results = d.get("results")
+            if results is not None:
+                return results if isinstance(results, list) else []
+            # Single entity (no "results" key)
+            return [d] if d else []
+        return []
 
     def close(self) -> None:
         """Close the session."""
